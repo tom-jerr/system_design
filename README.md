@@ -12,13 +12,14 @@ Agent 必须遵循 [`docs/DESIGN_RULES.md`](docs/DESIGN_RULES.md) 中的设计�
 
 ## 当前进度
 
-当前仓库包含一个单机多进程 MapReduce 实现：
+当前仓库包含单机多进程 MapReduce 和单服务端内存 KV 原型：
 
 - `shard_kv/mapreduce/`：使用 Tokio 和 Unix domain sockets 实现 Coordinator/Worker、Map/Reduce 执行、attempt fencing、租约、心跳、Map 输出 manifest 和故障恢复。
 - `shard_kv/mapreduce/docs/MAPREDUCE_FAILURE_DESIGN.md`：协议、状态机、租约边界、失败处理与恢复设计。
 - `shard_kv/mapreduce/tests/`：与顺序参考实现对比的正确性测试和 worker 崩溃恢复场景。
+- `shard_kv/kvsrv/`：基于 Tokio 和 tarpc TCP 的版本化 KV、客户端重试、租约锁及 fencing 写入；具体语义和验证边界见[模块说明](shard_kv/kvsrv/README.md)。
 
-这是一个学习用的单机原型：Coordinator 状态保存在内存中，Worker 通过本机 UDS 通信，输入文件对进程可见。它还不是可多机部署或 Coordinator 重启后可恢复的集群。目录名中的 `shard_kv` 也不代表当前已有 ShardKV 实现。
+这两个原型的服务端状态都保存在内存中。MapReduce 使用本机 UDS，输入文件对进程可见；KV 使用 TCP，但只有一个服务端，不提供服务端重启恢复。目录名中的 `shard_kv` 也不代表当前已有 Raft 或 ShardKV 实现。
 
 ## 学习路线
 
@@ -28,7 +29,7 @@ Agent 必须遵循 [`docs/DESIGN_RULES.md`](docs/DESIGN_RULES.md) 中的设计�
 
 1. MapReduce：任务调度、数据流、重试、幂等与失败恢复。当前实现和设计说明见 [`shard_kv/mapreduce/`](shard_kv/mapreduce/README.md)。
 2. Raft：选举、日志复制、安全性、持久化与 snapshot。
-3. Key/Value 服务：线性一致性、重复请求处理、客户端重试与状态机应用。
+3. Key/Value 服务：先实现单机版本化 KV、客户端重试和租约锁，再探索通过 Raft 复制状态机。
 4. ShardKV：分片配置、迁移、配置变更期间的并发与故障。
 5. 结合论文扩展：围绕具体实现问题选择论文，复现关键机制或设计实验，不以“论文清单”代替可验证的工程结果。
 
@@ -48,6 +49,11 @@ Agent 必须遵循 [`docs/DESIGN_RULES.md`](docs/DESIGN_RULES.md) 中的设计�
 
 ## 开始使用
 
+在 VS Code/Cursor 中直接打开仓库根目录 `system_design` 即可：
+[`rust-analyzer.linkedProjects`](.vscode/settings.json) 显式关联 MapReduce 和 KV 两个独立的 Cargo 项目。
+如果编辑器仍显示旧的项目发现错误，在命令面板执行 `rust-analyzer: Restart server`，或执行 `Developer: Reload Window`。
+新增 Rust 项目时，需要将其 `Cargo.toml` 路径加入该列表。其他编辑器需在各自的 LSP 配置中设置 `linkedProjects`。
+
 MapReduce crate 位于子目录中：
 
 ```sh
@@ -56,6 +62,8 @@ cargo build --bins
 ```
 
 更多运行示例、应用列表、环境变量及测试说明见 [`shard_kv/mapreduce/README.md`](shard_kv/mapreduce/README.md)。
+
+单机 KV 服务的构建、启动和客户端接口见 [`shard_kv/kvsrv/README.md`](shard_kv/kvsrv/README.md)。
 
 ## 设计记录
 
